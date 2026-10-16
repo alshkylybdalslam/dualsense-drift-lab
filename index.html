@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DualSense Drift Lab</title>
+<style>
+  :root {
+    --bg:#0d1117; --panel:#161b22; --border:#30363d; --text:#e6edf3;
+    --dim:#8b949e; --accent:#58a6ff; --good:#3fb950; --warn:#d29922; --bad:#f85149;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;padding:24px;background:var(--bg);color:var(--text);
+       font:14px/1.5 -apple-system,"Segoe UI",Roboto,sans-serif;max-width:1080px;margin-inline:auto}
+  h1{font-size:20px;margin:0 0 4px}
+  h2{font-size:15px;margin:0 0 12px;color:var(--accent)}
+  .sub{color:var(--dim);margin:0 0 20px;font-size:13px}
+  .panel{background:var(--panel);border:1px solid var(--border);border-radius:8px;
+         padding:16px;margin-bottom:16px}
+  button{background:#21262d;color:var(--text);border:1px solid var(--border);border-radius:6px;
+         padding:7px 14px;cursor:pointer;font-size:13px}
+  button:hover:not(:disabled){background:#30363d}
+  button:disabled{opacity:.4;cursor:not-allowed}
+  button.primary{background:#238636;border-color:#2ea043}
+  button.primary:hover:not(:disabled){background:#2ea043}
+  button.danger{background:#b62324;border-color:#da3633}
+  button.danger:hover:not(:disabled){background:#da3633}
+  .axes{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+  .axis{background:#0d1117;border:1px solid var(--border);border-radius:6px;padding:10px}
+  .axis h3{margin:0 0 8px;font-size:12px;color:var(--dim);font-weight:600;letter-spacing:.02em}
+  .raw{font:600 22px/1 "SF Mono",Consolas,monospace}
+  .norm{color:var(--dim);font-size:12px;margin-top:4px}
+  .bar{height:6px;background:#21262d;border-radius:3px;margin-top:8px;position:relative;overflow:hidden}
+  .bar i{position:absolute;top:0;bottom:0;background:var(--accent)}
+  .bar u{position:absolute;top:0;bottom:0;left:50%;width:1px;background:var(--dim);z-index:2}
+  table{border-collapse:collapse;width:100%;font-size:13px;margin-top:12px}
+  th,td{text-align:left;padding:5px 10px;border-bottom:1px solid var(--border)}
+  th{color:var(--dim);font-weight:600}
+  .mono{font-family:"SF Mono",Consolas,monospace}
+  .hex,.log{font-family:"SF Mono",Consolas,monospace;background:#0d1117;
+            border:1px solid var(--border);border-radius:6px;padding:10px;white-space:pre-wrap;word-break:break-all}
+  .hex{font-size:12px;line-height:1.7;white-space:pre;overflow-x:auto}
+  .log{font-size:11.5px;line-height:1.6;max-height:220px;overflow-y:auto}
+  .note{background:#1c1a12;border:1px solid #4d3d16;border-radius:6px;padding:10px 12px;font-size:13px;margin:10px 0}
+  .note.danger{background:#1c1214;border-color:#5a1e22}
+  .note.good{background:#12201a;border-color:#1d4a2c}
+  .ok{color:var(--good)} .warn{color:var(--warn)} .bad{color:var(--bad)} .dim{color:var(--dim)}
+  label{display:flex;gap:8px;align-items:flex-start;margin:10px 0;cursor:pointer}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  input[type=text]{background:#0d1117;border:1px solid var(--border);border-radius:6px;
+                   color:var(--text);padding:6px 10px;font-family:monospace}
+  canvas{background:#0d1117;border:1px solid var(--border);border-radius:6px;display:block}
+  .badge{display:inline-block;padding:1px 7px;border-radius:10px;font-size:11px;font-weight:600}
+  .b-good{background:#12351f;color:var(--good)} .b-warn{background:#3a2d10;color:var(--warn)}
+  .b-bad{background:#3d1518;color:var(--bad)}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:760px){.axes,.grid2{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<h1>DualSense Drift Lab</h1>
+<p class="sub">
+  Measure, back up, and optionally recentre stick drift on a Sony DualSense / DualSense Edge.
+  Runs entirely in your browser via WebHID. Nothing is uploaded, nothing is installed.
+</p>
+
+<div class="panel">
+  <h2>1 · Connect</h2>
+  <div class="row">
+    <button id="btnConnect" class="primary">Connect controller</button>
+    <span id="connStatus" class="dim">Not connected</span>
+  </div>
+  <div class="note">
+    Use a <b>USB cable</b> — Bluetooth feature-report access is unreliable for calibration.
+    If several entries appear, pick the one whose usage is <b>Game Pad</b>
+    (usage page <span class="mono">0x01</span>, usage <span class="mono">0x05</span>).
+  </div>
+</div>
+
+<div class="panel">
+  <h2>2 · Live raw input</h2>
+  <div class="grid2">
+    <div>
+      <div class="axes">
+        <div class="axis"><h3>LEFT X · byte 1</h3><div class="raw" id="lx">—</div><div class="norm" id="lxn"></div><div class="bar"><u></u><i id="lxb"></i></div></div>
+        <div class="axis"><h3>LEFT Y · byte 2</h3><div class="raw" id="ly">—</div><div class="norm" id="lyn"></div><div class="bar"><u></u><i id="lyb"></i></div></div>
+        <div class="axis"><h3>RIGHT X · byte 3</h3><div class="raw" id="rx">—</div><div class="norm" id="rxn"></div><div class="bar"><u></u><i id="rxb"></i></div></div>
+        <div class="axis"><h3>RIGHT Y · byte 4</h3><div class="raw" id="ry">—</div><div class="norm" id="ryn"></div><div class="bar"><u></u><i id="ryb"></i></div></div>
+      </div>
+      <p class="sub" style="margin:12px 0 0">
+        Rate <span id="rate" class="mono">—</span> Hz ·
+        Report ID <span id="repid" class="mono">—</span> ·
+        <span id="busLabel" class="mono dim">bus unknown</span>
+      </p>
+    </div>
+    <div>
+      <canvas id="plot" width="260" height="260"></canvas>
+      <p class="sub" style="margin:6px 0 0;text-align:center">Crosshair = ideal centre (128,128)</p>
+    </div>
+  </div>
+</div>
+
+<div class="panel">
+  <h2>3 · Rest measurement</h2>
+  <p class="sub" style="margin-top:0">
+    Set the controller down, hands off both sticks, hold still.
+    A perfect centre is <b>128</b>; each raw step ≈ 0.8% of travel.
+  </p>
+  <div class="row">
+    <button id="btnSample" disabled>Sample 3 seconds</button>
+    <button id="btnBase" disabled>Set as baseline</button>
+    <button id="btnCsv" disabled>Export CSV</button>
+    <span id="sampleStatus" class="dim">—</span>
+  </div>
+  <table>
+    <thead><tr><th>Axis</th><th>Mean</th><th>Offset</th><th>Jitter σ</th><th>Range seen</th><th>Verdict</th></tr></thead>
+    <tbody id="sampleBody"><tr><td colspan="6" class="dim">No sample yet</td></tr></tbody>
+  </table>
+  <div id="cmpBox" style="display:none">
+    <h2 style="margin-top:18px">Baseline comparison</h2>
+    <p class="sub" style="margin-top:0">Recalibrate, sample again, and read the change here.</p>
+    <table>
+      <thead><tr><th>Axis</th><th>Baseline</th><th>Now</th><th>Change</th><th></th></tr></thead>
+      <tbody id="cmpBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<div class="panel">
+  <h2>4 · Calibration backup <span class="dim" style="font-weight:400">(read-only)</span></h2>
+  <div class="row">
+    <button id="btnDump" disabled>Read calibration (0x05)</button>
+    <button id="btnCopy" disabled>Copy hex</button>
+    <button id="btnSaveJson" disabled>Save backup JSON</button>
+  </div>
+  <div class="hex" id="calHex" style="margin-top:12px">No data read yet.</div>
+  <div class="note good" id="backupHint">
+    Do this <b>before</b> recalibrating. The hex dump is the ground truth of what your controller
+    stores — keep it, and you always have a record of the original state.
+  </div>
+  <div class="grid2" style="margin-top:12px">
+    <div>
+      <h2 style="font-size:13px">Decoded sticks <span class="dim" style="font-weight:400">(best effort)</span></h2>
+      <table><thead><tr><th>Field</th><th>min</th><th>center</th><th>max</th></tr></thead>
+      <tbody id="calBody"><tr><td colspan="4" class="dim">Not decoded</td></tr></tbody></table>
+    </div>
+    <div>
+      <h2 style="font-size:13px">Device info</h2>
+      <table><tbody id="devBody"><tr><td class="dim">Read pairing info (0x09)</td></tr></tbody></table>
+      <button id="btnDevInfo" style="margin-top:8px" disabled>Read pairing info</button>
+    </div>
+  </div>
+</div>
+
+<div class="panel">
+  <h2>5 · Recalibrate <span class="dim" style="font-weight:400">(writes to controller)</span></h2>
+
+  <div class="note">
+    <b>What it does:</b> asks the controller to re-measure where "resting" is, then stores that as the
+    new centre. It does <i>not</i> repair the worn potentiometer — it recentres around the wear.
+    <br><br>
+    <b class="ok">It is reversible.</b> The default write is <b>volatile</b>: it lives in RAM and
+    <b>unplugging the controller restores the original calibration</b>. So you can try it with no
+    long-term risk. Tick "make permanent" only after it feels right.
+    <br><br>
+    <b class="warn">Honest caveat:</b> recentring steals throw from the drifting direction. With heavy
+    drift that can cost accuracy on the healthy side. That's exactly why unplug-to-undo is the default.
+  </div>
+
+  <div class="row" style="gap:16px;margin:14px 0">
+    <label style="margin:0"><input type="radio" name="mode" value="centre" checked> <span>Centre only <span class="dim">(stick at rest)</span></span></label>
+    <label style="margin:0"><input type="radio" name="mode" value="range"> <span>Centre + range <span class="dim">(sweep both sticks)</span></span></label>
+  </div>
+
+  <label>
+    <input type="checkbox" id="chkAck">
+    <span>I have read the backup in section 4 and understand this writes to my controller.</span>
+  </label>
+
+  <div class="row" style="margin-top:8px">
+    <button id="btnCalStart" class="danger" disabled>Step 1 · Start</button>
+    <button id="btnCalStore" class="danger" disabled>Step 2 · Store</button>
+    <button id="btnCalAbort" disabled>Abort</button>
+    <span id="calStatus" class="dim"></span>
+  </div>
+  <p class="sub" style="margin:10px 0 0" id="calHint">Keep the stick untouched during Step 1.</p>
+
+  <label style="margin-top:14px;border-top:1px solid var(--border);padding-top:12px">
+    <input type="checkbox" id="chkPerm">
+    <span><b class="bad">Make permanent</b> — unlocks controller flash (NVS). Survives unplug.
+    This is the irreversible one. Leave unticked until the volatile test is good.</span>
+  </label>
+  <div id="permWrap" style="display:none;margin-top:8px">
+    <span class="dim">Type <b>PERMANENT</b> to enable:</span>
+    <input type="text" id="permPhrase" placeholder="PERMANENT" autocomplete="off">
+  </div>
+</div>
+
+<div class="panel">
+  <h2>HID transaction log</h2>
+  <div class="log" id="log">—</div>
+</div>
+
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+const logEl = $("log");
+function log(msg, cls) {
+  const d = document.createElement("div");
+  d.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+  if (cls) d.className = cls;
+  logEl.appendChild(d);
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
+const VID = 0x054c, PID_DS = 0x0ce6, PID_EDGE = 0x0df2;
+let dev = null, bus = "usb";
+const ring = [];                 // {t,lx,ly,rx,ry}
+let rxWin = 0;
+let last = { lx:128, ly:128, rx:128, ry:128 };
+let baseline = null, lastSample = null;
+let calBytes = null, devInfo = null;
+
+// ---------------------------------------------------------------- connect
+$("btnConnect").onclick = async () => {
+  try {
+    const picked = await navigator.hid.requestDevice({
+      filters: [
+        { vendorId: VID, productId: PID_DS,  usagePage: 0x01, usage: 0x05 },
+        { vendorId: VID, productId: PID_EDGE, usagePage: 0x01, usage: 0x05 },
+      ]
+    });
+    if (!picked.length) return;
+    dev = picked[0];
+    await dev.open();
+    bus = "usb";
+    $("connStatus").textContent =
+      `Connected · ${dev.productName || "DualSense"} · ${dev.vendorId.toString(16)}:${dev.productId.toString(16)}`;
+    $("connStatus").className = "ok";
+    log(`Opened ${dev.productName} (${dev.vendorId.toString(16)}:${dev.productId.toString(16)})`, "ok");
+    dev.addEventListener("inputreport", onInput);
+    dev.addEventListener("inputreporterror", e => log("inputreport error: " + e.message, "bad"));
+    ["btnSample","btnDump","btnDevInfo"].forEach(i => $(i).disabled = false);
+    setInterval(() => { $("rate").textContent = rxWin; rxWin = 0; }, 1000);
+  } catch (e) {
+    $("connStatus").textContent = "Failed: " + e.message;
+    $("connStatus").className = "bad";
+    log("Connect error: " + e.message, "bad");
+  }
+};
+
+// ---------------------------------------------------------------- input
+// USB report 0x01 (64B):  [0]=id [1]=LX [2]=LY [3]=RX [4]=RY
+// BT   report 0x31 (78B): [0]=id [1]=seq [2]=LX [3]=LY [4]=RX [5]=RY
+function onInput(ev) {
+  const d = ev.data;
+  rxWin++;
+  $("repid").textContent = "0x" + ev.reportId.toString(16).padStart(2,"0");
+  let off;
+  if (ev.reportId === 0x01) off = 1;
+  else if (ev.reportId === 0x31) off = 2;
+  else off = (d.byteLength > 5) ? 2 : 1;                 // best guess
+  if (d.byteLength < off + 4) return;
+  const v = { lx:d.getUint8(off), ly:d.getUint8(off+1), rx:d.getUint8(off+2), ry:d.getUint8(off+3) };
+  last = v;
+  ring.push({ t: performance.now(), ...v });
+  if (ring.length > 20000) ring.splice(0, ring.length - 20000);
+  for (const k of ["lx","ly","rx","ry"]) setAxis(k, v[k]);
+  drawPlot();
+}
+function setAxis(k, raw) {
+  $(k).textContent = raw;
+  const n = (raw - 127.5) / 127.5;
+  $(k+"n").textContent = (n>=0?"+":"") + n.toFixed(3);
+  const b = $(k+"b"), w = Math.min(50, Math.abs(n)*50);
+  b.style.width = w + "%";
+  b.style.left = (n>=0 ? 50 : 50-w) + "%";
+  b.style.background = Math.abs(n) > 0.15 ? "var(--bad)" : "var(--accent)";
+}
+
+// ---------------------------------------------------------------- plot
+function drawPlot() {
+  const c = $("plot"), g = c.getContext("2d");
+  g.clearRect(0,0,c.width,c.height);
+  g.strokeStyle = "#21262d"; g.lineWidth = 1;
+  for (let i=1;i<4;i++){ g.beginPath(); g.moveTo(i*65,0); g.lineTo(i*65,260); g.stroke();
+                         g.beginPath(); g.moveTo(0,i*65); g.lineTo(260,i*65); g.stroke(); }
+  g.strokeStyle = "#30363d"; g.setLineDash([4,4]);
+  g.beginPath(); g.moveTo(130,0); g.lineTo(130,260); g.stroke();
+  g.beginPath(); g.moveTo(0,130); g.lineTo(260,130); g.stroke();
+  g.setLineDash([]);
+  g.strokeStyle = "#3fb950"; g.beginPath(); g.arc(130,130,5,0,7); g.stroke();
+  const px = v => (v/255)*260;
+  // trail
+  const tail = ring.slice(-160);
+  if (tail.length > 1) {
+    for (let i=1;i<tail.length;i++) {
+      g.strokeStyle = `rgba(88,166,255,${i/tail.length*0.5})`;
+      g.beginPath(); g.moveTo(px(tail[i-1].lx),px(tail[i-1].ly)); g.lineTo(px(tail[i].lx),px(tail[i].ly)); g.stroke();
+    }
+  }
+  g.fillStyle = "#58a6ff"; g.beginPath(); g.arc(px(last.lx),px(last.ly),5,0,7); g.fill();
+  g.fillStyle = "#d29922"; g.beginPath(); g.arc(px(last.rx),px(last.ry),4,0,7); g.fill();
+  g.font = "11px monospace"; g.fillStyle = "#8b949e";
+  g.fillText("L", px(last.lx)+8, px(last.ly));
+  g.fillText("R", px(last.rx)+8, px(last.ry));
+}
+
+// ---------------------------------------------------------------- sampling
+$("btnSample").onclick = async () => {
+  $("btnSample").disabled = true;
+  $("sampleStatus").textContent = "Sampling — hands off…";
+  $("sampleStatus").className = "warn";
+  const t0 = performance.now();
+  await new Promise(r => setTimeout(r, 3000));
+  const win = ring.filter(s => s.t >= t0);
+  const res = analyse(win);
+  lastSample = { at: Date.now(), res, n: win.length };
+  renderSample(res);
+  $("btnBase").disabled = false; $("btnCsv").disabled = false;
+  $("btnSample").disabled = false;
+  $("sampleStatus").textContent = `Captured ${win.length} samples`;
+  $("sampleStatus").className = "ok";
+  if (baseline) renderCompare();
+};
+
+function analyse(win) {
+  const out = {};
+  for (const k of ["lx","ly","rx","ry"]) {
+    const a = win.map(s => s[k]);
+    if (!a.length) { out[k] = null; continue; }
+    const mean = a.reduce((x,y)=>x+y,0)/a.length;
+    const sd = Math.sqrt(a.reduce((s,v)=>s+(v-mean)**2,0)/a.length);
+    out[k] = { mean, sd, min:Math.min(...a), max:Math.max(...a), off:mean-128, pct:(mean-128)/128*100 };
+  }
+  return out;
+}
+const LBL = { lx:"Left X", ly:"Left Y", rx:"Right X", ry:"Right Y" };
+
+function verdict(o) {
+  const m = Math.abs(o.off);
+  if (m > 8)  return '<span class="badge b-bad">DRIFT</span>';
+  if (m > 3)  return '<span class="badge b-warn">slight</span>';
+  return '<span class="badge b-good">healthy</span>';
+}
+function renderSample(r) {
+  $("sampleBody").innerHTML = ["lx","ly","rx","ry"].map(k => {
+    const o = r[k];
+    if (!o) return `<tr><td>${LBL[k]}</td><td colspan="5" class="dim">no data</td></tr>`;
+    const bad = Math.abs(o.off) > 8;
+    return `<tr><td>${LBL[k]}</td>
+      <td class="mono">${o.mean.toFixed(1)}</td>
+      <td class="mono ${bad?"bad":""}">${o.off>=0?"+":""}${o.off.toFixed(1)} (${o.pct>=0?"+":""}${o.pct.toFixed(1)}%)</td>
+      <td class="mono dim">±${o.sd.toFixed(2)}</td>
+      <td class="mono dim">${o.min}–${o.max}</td>
+      <td>${verdict(o)}</td></tr>`;
+  }).join("");
+}
+$("btnBase").onclick = () => {
+  if (!lastSample) return;
+  baseline = lastSample;
+  renderCompare();
+  $("cmpBox").style.display = "block";
+  log("Baseline captured", "ok");
+};
+function renderCompare() {
+  if (!baseline || !lastSample) return;
+  $("cmpBody").innerHTML = ["lx","ly","rx","ry"].map(k => {
+    const b = baseline.res[k], n = lastSample.res[k];
+    if (!b || !n) return `<tr><td>${LBL[k]}</td><td colspan="4" class="dim">n/a</td></tr>`;
+    const d = n.off - b.off;
+    const good = Math.abs(n.off) < Math.abs(b.off);
+    return `<tr><td>${LBL[k]}</td>
+      <td class="mono dim">${b.off>=0?"+":""}${b.off.toFixed(1)}</td>
+      <td class="mono">${n.off>=0?"+":""}${n.off.toFixed(1)}</td>
+      <td class="mono ${good?"ok":"bad"}">${d>=0?"+":""}${d.toFixed(1)}</td>
+      <td>${good?'<span class="ok">improved</span>':'<span class="bad">worse</span>'}</td></tr>`;
+  }).join("");
+}
+$("btnCsv").onclick = () => {
+  if (!ring.length) return;
+  const rows = ["ms,lx,ly,rx,ry", ...ring.map(s => `${Math.round(s.t)},${s.lx},${s.ly},${s.rx},${s.ry}`)];
+  download("drift-sample.csv", rows.join("\n"), "text/csv");
+  log(`Exported ${ring.length} samples to CSV`, "ok");
+};
+function download(name, text, type) {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([text], {type}));
+  a.download = name; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+}
+
+// ---------------------------------------------------------------- backup
+$("btnDump").onclick = async () => {
+  if (!dev || !dev.opened) return;
+  try {
+    const dv = await dev.receiveFeatureReport(0x05);
+    calBytes = new Uint8Array(dv.buffer, dv.byteOffset, dv.byteLength);
+    $("calHex").textContent = hexDump(calBytes);
+    $("btnCopy").disabled = false; $("btnSaveJson").disabled = false;
+    decodeSticks(calBytes);
+    log(`Read calibration report 0x05 · ${calBytes.length} bytes`, "ok");
+  } catch (e) {
+    $("calHex").textContent = "Read failed: " + e.message;
+    log("Calibration read error: " + e.message, "bad");
+  }
+};
+function hexDump(b) {
+  let out = "";
+  for (let i=0;i<b.length;i+=16) {
+    const chunk = Array.from(b.slice(i,i+16)).map(x=>x.toString(16).padStart(2,"0")).join(" ");
+    out += i.toString(16).padStart(4,"0") + "  " + chunk + "\n";
+  }
+  return out;
+}
+$("btnCopy").onclick = () => {
+  if (calBytes) navigator.clipboard.writeText(
+    Array.from(calBytes).map(x=>x.toString(16).padStart(2,"0")).join(" "));
+  log("Hex copied", "ok");
+};
+$("btnSaveJson").onclick = () => {
+  if (!calBytes) return;
+  download("dualsense-calibration-backup.json", JSON.stringify({
+    tool:"dualsense-drift-lab", version:2, savedAt:new Date().toISOString(),
+    productName: dev && dev.productName, rawHex: Array.from(calBytes).map(x=>x.toString(16).padStart(2,"0")).join(""),
+    rawBytes: Array.from(calBytes)
+  }, null, 2), "application/json");
+  log("Backup JSON saved", "ok");
+};
+
+// Best-effort 12-bit unpack, following the packed layout used by hid-playstation.
+// The hex dump above remains authoritative — firmware revisions differ.
+function decodeSticks(b) {
+  if (b.length < 12) return;
+  // Three 12-bit fields packed per 2 bytes, starting after the report id.
+  const fields = [];
+  const names = ["LX min","LX center","LX max","LY min","LY center","LY max"];
+  let bit = 0;
+  for (let i=0;i<6;i++) {
+    const byteIdx = 1 + (bit >> 3);
+    const shift = bit & 7;
+    let v = 0;
+    for (let k=0;k<3;k++) {
+      const bi = byteIdx + k;
+      if (bi < b.length) v |= b[bi] << (k*8);
+    }
+    v = (v >> shift) & 0xfff;
+    fields.push([names[i], v]);
+    bit += 12;
+  }
+  const rows = [];
+  for (let i=0;i<6;i+=3) {
+    rows.push(`<tr><td>${fields[i][0].split(" ")[0]}</td>
+      <td class="mono">${fields[i][1]}</td>
+      <td class="mono">${fields[i+1][1]}</td>
+      <td class="mono">${fields[i+2][1]}</td></tr>`);
+  }
+  $("calBody").innerHTML =
+    `<tr><td colspan="4" class="dim" style="font-style:italic">UNVERIFIED — cross-check against the hex</td></tr>` +
+    rows.join("");
+}
+
+// pairing info 0x09 -> MAC + hw/fw version (offsets per hid-playstation)
+$("btnDevInfo").onclick = async () => {
+  try {
+    const dv = await dev.receiveFeatureReport(0x09);
+    const b = new Uint8Array(dv.buffer, dv.byteOffset, dv.byteLength);
+    const mac = Array.from(b.slice(1,7)).map(x=>x.toString(16).padStart(2,"0")).join(":").toUpperCase();
+    const hw = b[11] | (b[12]<<8);
+    const fw = b[13] | (b[14]<<8);
+    devInfo = { mac, hw, fw };
+    $("devBody").innerHTML = `
+      <tr><td class="dim">MAC</td><td class="mono">${mac}</td></tr>
+      <tr><td class="dim">HW version</td><td class="mono">0x${hw.toString(16)}</td></tr>
+      <tr><td class="dim">FW version</td><td class="mono">0x${fw.toString(16).padStart(4,"0")} (${fw})</td></tr>`;
+    log(`Pairing info: ${mac} fw 0x${fw.toString(16)}`, "ok");
+  } catch (e) { log("Pairing read error: " + e.message, "bad"); }
+};
+
+// ---------------------------------------------------------------- calibrate
+// Protocol (dualshock-tools ds5-calibration-tool.py):
+//   0x82 [cmd, deviceId, targetId]  cmd: 1=start 2=store 3=sample else=abort
+//   0x83 -> [deviceId, targetId, 1, 0xff] ack
+//   centre: targetId=1   range: targetId=2
+const DEV_ID = 1, TGT_CENTRE = 1, TGT_RANGE = 2;
+let activeTarget = TGT_CENTRE;
+
+$("chkAck").onchange = e => {
+  $("btnCalStart").disabled = !e.target.checked;
+  if (!e.target.checked) { $("btnCalStore").disabled = true; }
+};
+$("chkPerm").onchange = e => {
+  $("permWrap").style.display = e.target.checked ? "block" : "none";
+  $("btnCalStart").disabled = !(e.target.checked ? $("permPhrase").value.trim()==="PERMANENT" : $("chkAck").checked);
+};
+$("permPhrase").oninput = () => {
+  $("btnCalStart").disabled = !($("chkPerm").checked
+    ? $("permPhrase").value.trim()==="PERMANENT" : $("chkAck").checked);
+};
+
+async function sendCmd(cmd, target) {
+  await dev.sendFeatureReport(0x82, new Uint8Array([cmd, DEV_ID, target]));
+  log(`TX 0x82 [${cmd}, ${DEV_ID}, ${target}]`);
+}
+async function handshake(target) {
+  const dv = await dev.receiveFeatureReport(0x83);
+  const b = new Uint8Array(dv.buffer, dv.byteOffset, dv.byteLength);
+  const p = Array.from(b.slice(1,5));
+  log(`RX 0x83 [${p.join(", ")}]`);
+  return { ok: p[0]===DEV_ID && p[1]===target && p[2]===1 && p[3]===0xff, p };
+}
+
+$("btnCalStart").onclick = async () => {
+  const mode = document.querySelector('input[name=mode]:checked').value;
+  activeTarget = (mode === "range") ? TGT_RANGE : TGT_CENTRE;
+  try {
+    if ($("chkPerm").checked) {
+      log("UNLOCKING NVS — permanent mode", "warn");
+      await dev.sendFeatureReport(0x80, new Uint8Array([3,2,101,50,64,12]));
+      log("TX 0x80 [3, 2, 101, 50, 64, 12]", "warn");
+    }
+    await sendCmd(1, activeTarget);
+    const hs = await handshake(activeTarget);
+    if (!hs.ok) {
+      $("calStatus").textContent = "Handshake failed";
+      $("calStatus").className = "bad";
+      log("Handshake FAILED [" + hs.p.join(", ") + "] — reconnect the controller and retry.", "bad");
+      return;
+    }
+    $("btnCalStart").disabled = true;
+    $("btnCalStore").disabled = false;
+    $("calStatus").textContent = "Sampling…";
+    $("calStatus").className = "warn";
+    $("calHint").textContent = mode === "range"
+      ? "Now slowly rotate BOTH sticks to the very edge of their range, several times."
+      : "Keep both sticks untouched. Set the controller down and let it settle.";
+    log(mode === "range" ? "Range sampling — sweep both sticks" : "Centre sampling — hands off", "warn");
+  } catch (e) { log("Start error: " + e.message, "bad"); }
+};
+
+$("btnCalStore").onclick = async () => {
+  try {
+    await sendCmd(2, activeTarget);
+    const hs = await handshake(activeTarget);
+    if (hs.ok) {
+      $("calStatus").textContent = "Stored"; $("calStatus").className = "ok";
+    } else {
+      $("calStatus").textContent = "Store ack odd"; $("calStatus").className = "warn";
+    }
+    if ($("chkPerm").checked) {
+      await dev.sendFeatureReport(0x80, new Uint8Array([3,1]));
+      log("TX 0x80 [3, 1] — NVS re-locked", "warn");
+    }
+    $("btnCalStore").disabled = true;
+    $("calHint").textContent = $("chkPerm").checked
+      ? "Done. PERMANENT — unplug will NOT undo this."
+      : "Done. Volatile — unplug the controller to undo. Re-sample below to compare.";
+    log($("chkPerm").checked
+      ? "Stored PERMANENTLY"
+      : "Stored (volatile). Unplug to undo.", hs.ok ? "ok" : "warn");
+    $("btnSample").focus();
+  } catch (e) { log("Store error: " + e.message, "bad"); }
+};
+
+$("btnCalAbort").onclick = async () => {
+  try { await sendCmd(0, activeTarget);
+        $("calStatus").textContent = "Aborted"; $("calStatus").className = "dim";
+        $("btnCalStore").disabled = true; }
+  catch (e) { log("Abort error: " + e.message, "bad"); }
+};
+
+// ---------------------------------------------------------------- init
+window.addEventListener("beforeunload", e => { if (dev && dev.opened) e.preventDefault(); });
+drawPlot();
+log("Ready. Connect the controller over USB.");
+</script>
+</body>
+</html>
