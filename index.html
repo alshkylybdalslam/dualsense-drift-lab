@@ -58,6 +58,30 @@
   .footbrand{display:flex;gap:10px;align-items:center}
   .footbrand img{width:28px;height:28px;opacity:.85}
   .disclaimer{margin-top:14px;font-size:11.5px;color:#6e7681;max-width:62ch}
+
+  /* ---------- verdict ---------- */
+  .vcard{background:#0d1117;border:1px solid var(--border);border-left-width:3px;
+         border-radius:6px;padding:14px 16px;margin:12px 0}
+  .vcard.s-healthy{border-left-color:var(--good)}
+  .vcard.s-watch{border-left-color:var(--warn)}
+  .vcard.s-drift{border-left-color:#e06c2a}
+  .vcard.s-severe{border-left-color:var(--bad)}
+  .vhead{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:6px}
+  .vsev{font-size:16px;font-weight:700;letter-spacing:.01em}
+  .s-healthy .vsev{color:var(--good)} .s-watch .vsev{color:var(--warn)}
+  .s-drift .vsev{color:#e06c2a} .s-severe .vsev{color:var(--bad)}
+  .vaxes{font-size:12px;color:var(--dim)}
+  .vbody-t{font-size:13.5px;line-height:1.6;margin:0;color:var(--text)}
+  .vbody-t b{color:var(--text)}
+  .throw{display:flex;height:22px;border:1px solid var(--border);border-radius:4px;
+         overflow:hidden;margin:10px 0 4px;background:#010409}
+  .throw div{position:relative;display:flex;align-items:center;justify-content:center;
+             font-size:10px;font-weight:600;color:var(--text);overflow:hidden;white-space:nowrap}
+  .throw .keep{background:#12351f}
+  .throw .lost{background:#3d1518}
+  .throw .gained{background:#122a3a}
+  .throw .mark{background:var(--dim);width:2px;flex:none;height:100%}
+  .throwcap{font-size:11px;color:var(--dim);margin:0 0 8px}
   .panel{background:var(--panel);border:1px solid var(--border);border-radius:8px;
          padding:16px;margin-bottom:16px}
   button{background:#21262d;color:var(--text);border:1px solid var(--border);border-radius:6px;
@@ -116,7 +140,7 @@
     </div>
   </div>
   <div class="ver">
-    <b>v2.0</b>
+    <b>v2.1</b>
     public build
   </div>
 </header>
@@ -173,6 +197,15 @@
     <thead><tr><th>Axis</th><th>Mean</th><th>Offset</th><th>Jitter σ</th><th>Range seen</th><th>Verdict</th></tr></thead>
     <tbody id="sampleBody"><tr><td colspan="6" class="dim">No sample yet</td></tr></tbody>
   </table>
+  <div id="verdictBox" style="display:none">
+    <h2 style="margin-top:18px">Verdict</h2>
+    <div class="vcard" id="vcard"></div>
+    <table>
+      <thead><tr><th>Axis</th><th>Drift</th><th>Throw change if recentred</th><th>Call</th></tr></thead>
+      <tbody id="vbody"></tbody>
+    </table>
+    <p class="sub" id="vassume" style="margin:10px 0 0"></p>
+  </div>
   <div id="cmpBox" style="display:none">
     <h2 style="margin-top:18px">Baseline comparison</h2>
     <p class="sub" style="margin-top:0">Recalibrate, sample again, and read the change here.</p>
@@ -374,6 +407,7 @@ $("btnSample").onclick = async () => {
   const res = analyse(win);
   lastSample = { at: Date.now(), res, n: win.length };
   renderSample(res);
+  renderVerdict(res);
   $("btnBase").disabled = false; $("btnCsv").disabled = false;
   $("btnSample").disabled = false;
   $("sampleStatus").textContent = `Captured ${win.length} samples`;
@@ -392,6 +426,86 @@ function analyse(win) {
   }
   return out;
 }
+
+// ---------------------------------------------------------------- verdict
+const HALF = 127;   // nominal raw half-range (128 = centre)
+const AXNAME = { lx:"Left stick X", ly:"Left stick Y", rx:"Right stick X", ry:"Right stick Y" };
+const TIERLABEL = { healthy:"HEALTHY", watch:"MARGINAL", drift:"DRIFT", severe:"SEVERE DRIFT" };
+
+function tierOf(a) {
+  if (a < 2.5) return "healthy";
+  if (a < 8)   return "watch";
+  if (a < 20)  return "drift";
+  return "severe";
+}
+
+// After a centre-only recentre the physical ends of travel don't move — the
+// centre does. Total throw is conserved, it just becomes lopsided.
+function throwSplit(off) {
+  const dn = off / HALF;
+  if (dn < 0) return { left:[0.5 + dn, -dn/2], right:[(1 - dn)/2, 0], lost:"left"  };
+  return          { left:[(1 + dn)/2, 0],       right:[0.5 - dn, dn/2], lost:"right" };
+}
+
+function renderVerdict(res) {
+  if (!res) return;
+  const axes = ["lx","ly","rx","ry"].filter(k => res[k]);
+  if (!axes.length) return;
+
+  const worst = axes.reduce((a,b) => Math.abs(res[b].off) > Math.abs(res[a].off) ? b : a);
+  const o = res[worst], a = Math.abs(o.off), t = tierOf(a);
+  const sp = throwSplit(o.off), pct = a / HALF * 100, dirn = sp.lost;
+
+  let advice, extra = "";
+  if (t === "healthy")
+    advice = `<b>No action needed.</b> Every axis is inside measurement noise. Recentring would only move the centre for no gain — and any write risks making things worse, so don't.`;
+  else if (t === "watch")
+    advice = `<b>Leave it, or recentre if it bothers you.</b> The offset is small enough that the throw cost is negligible either way. Re-measure in a few weeks to see whether it's actually progressing.`;
+  else if (t === "drift")
+    advice = `<b>Recentre.</b> This is the sweet spot: the offset is real and you'll feel it in-game, but the throw you give up is small. Run it volatile first — unplug to undo if it feels wrong.`;
+  else
+    advice = `<b>Replace the stick module.</b> Recentring would recentre <i>around</i> heavy wear: you get a centred stick back, but you give up roughly <b>${pct.toFixed(0)}% of throw in the ${dirn === "left" ? "leftward" : "rightward"} direction</b>, and you will feel that in-game. If you can't replace it now, recentre anyway — it's reversible by unplugging — but know you're trading throw for centre.`;
+
+  if (o.sd > 4)
+    extra = `<p class="throwcap" style="color:var(--warn)">⚠ Jitter on this axis is σ=${o.sd.toFixed(1)} raw. The rest position wasn't stable enough to calibrate against — high σ usually means debris in the pot or a loose gimbal. Let it settle before writing anything.</p>`;
+
+  const seg = (cls, v, label) =>
+    `<div class="${cls}" style="flex:${Math.max(0.0005, v)}">${v > 0.02 ? label : ""}</div>`;
+
+  $("vcard").className = "vcard s-" + t;
+  $("vcard").innerHTML =
+    `<div class="vhead">
+       <span class="vsev">${TIERLABEL[t]}</span>
+       <span class="vaxes">${AXNAME[worst]} &middot; ${o.off>=0?"+":""}${o.off.toFixed(1)} raw &middot; ${pct.toFixed(1)}% of travel off centre</span>
+     </div>
+     <p class="vbody-t">${advice}</p>${extra}
+     <div class="throw">
+       ${seg("keep", sp.left[0],  "keep")}
+       ${seg("lost", sp.left[1],  "lost")}
+       <div class="mark"></div>
+       ${seg("keep", sp.right[0], "keep")}
+       ${seg("lost", sp.right[1], "lost")}
+     </div>
+     <p class="throwcap">Throw after a centre-only recentre &mdash; green is usable travel, red is what you give up in the drifting direction, the grey line is the new centre. Total throw is conserved; it just becomes lopsided.</p>`;
+
+  $("vbody").innerHTML = axes.map(k => {
+    const x = res[k], aa = Math.abs(x.off), tt = tierOf(aa);
+    const s2 = throwSplit(x.off);
+    const cost = aa / HALF * 100;
+    const cls  = { healthy:"b-good", watch:"b-warn", drift:"b-warn", severe:"b-bad" }[tt];
+    return `<tr>
+      <td>${AXNAME[k]}</td>
+      <td class="mono ${aa>=8?"bad":""}">${x.off>=0?"+":""}${x.off.toFixed(1)}</td>
+      <td class="mono ${aa>=8?"bad":"dim"}">${tt==="healthy" ? "—" : `−${cost.toFixed(0)}% ${s2.lost==="left"?"leftward":"rightward"}`}</td>
+      <td><span class="badge ${cls}">${tt}</span> <span class="dim">${tt==="healthy"?"no write":`~${cost.toFixed(0)}% throw cost`}</span></td>
+    </tr>`;
+  }).join("");
+
+  $("vassume").textContent =
+    "Throw figures assume the nominal 128/127 raw range and a centre-only recentre. Read the calibration (section 4) if you want them checked against your pad's stored min/max. A centre+range recalibration changes this maths — sweep both sticks for that one.";
+  $("verdictBox").style.display = "block";
+}
+
 const LBL = { lx:"Left X", ly:"Left Y", rx:"Right X", ry:"Right Y" };
 
 function verdict(o) {
@@ -456,6 +570,7 @@ $("btnDump").onclick = async () => {
     $("calHex").textContent = hexDump(calBytes);
     $("btnCopy").disabled = false; $("btnSaveJson").disabled = false;
     decodeSticks(calBytes);
+    if (lastSample) renderVerdict(lastSample.res);
     log(`Read calibration report 0x05 · ${calBytes.length} bytes`, "ok");
   } catch (e) {
     $("calHex").textContent = "Read failed: " + e.message;
@@ -637,7 +752,7 @@ log("Ready. Connect the controller over USB.");
     <div class="footbrand">
       <img src="assets/logo.svg" alt="">
       <div>
-        <b style="color:var(--text)">DualSense Drift Lab</b> v2.0<br>
+        <b style="color:var(--text)">DualSense Drift Lab</b> v2.1<br>
         Independent tool &middot; not affiliated with or endorsed by Sony Interactive Entertainment.
       </div>
     </div>

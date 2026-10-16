@@ -14,6 +14,7 @@
 </p>
 
 <p align="center">
+  <img src="https://img.shields.io/badge/version-v2.1-1f6feb?style=flat-square" alt="version 2.1">
   <img src="https://img.shields.io/badge/file-single%20HTML-1f6feb?style=flat-square" alt="single HTML file">
   <img src="https://img.shields.io/badge/deps-zero-238636?style=flat-square" alt="zero dependencies">
   <img src="https://img.shields.io/badge/telemetry-none-b62324?style=flat-square" alt="no telemetry">
@@ -92,6 +93,7 @@ before you touched it.
 | 2 | Live raw input | 8-bit stick bytes, report rate, USB/BT report ID | no |
 | 3 | Rest measurement | 3-second capture: mean, offset, jitter σ, range | no |
 | 3 | Baseline compare | before-vs-after table once you recalibrate | no |
+| 3 | **Verdict** | severity tier, throw-cost model, throw-split bar | no |
 | 4 | Calibration backup | feature report `0x05`, hex dump, JSON export | no |
 | 4 | Device info | MAC address, HW/FW version from `0x09` | no |
 | 5 | Recalibrate | handshake ack verification (`0x83`) | **yes** |
@@ -100,6 +102,53 @@ before you touched it.
 **A note on the numbers.** A perfect stick centre is `128`. Each raw step is roughly 0.8% of full travel. The tool
 shows both the raw byte and the normalised −1.000…+1.000 value, because raw is what the controller stores and
 normalised is what your game engine consumes.
+
+---
+
+## Reading the verdict
+
+Section 3 doesn't just print numbers — it turns your sample into a call. The verdict panel appears as soon as a
+3-second sample lands, and refreshes if you read the calibration afterwards (because the stored min/max can refine
+the throw maths).
+
+### Severity tiers
+
+Thresholds are on the **absolute raw offset** from the ideal centre of `128`:
+
+| Tier | Raw offset | What it means | What to do |
+|---|---|---|---|
+| `HEALTHY` | < 2.5 | Inside measurement noise | Nothing. Do not write. |
+| `MARGINAL` | 2.5 – 8 | Real but trivial | Leave it, or recentre. Re-check in a few weeks. |
+| `DRIFT` | 8 – 20 | You will feel this in-game | Recentre — volatile first. This is the sweet spot. |
+| `SEVERE` | ≥ 20 | Recentring trades throw for centre | Replace the stick module. |
+
+The worst axis drives the headline; all four axes are still listed individually with their own tier and cost.
+
+### The throw-cost model
+
+This is the part most calibration tools skip. **Recentring a centre-only calibration does not recover lost travel —
+it relocates the centre.** The physical ends of the stick's travel don't move; the zero point does. Total throw is
+conserved, it just becomes lopsided:
+
+- The drifting direction **loses** throw equal to the offset.
+- The opposite direction **gains** exactly as much.
+
+So for an offset of −33.4 raw, the negative side shrinks by ~26% and the positive side grows by ~26%. You get a stick
+that reads `128` at rest — and runs out of travel earlier when you push the way it was already drifting. In a game
+like Rocket League that is a real, audible loss of authority in one direction.
+
+The **throw-split bar** shows this directly: green is usable travel, red is what you give up, the grey line is the
+new centre.
+
+Figures assume the nominal 128/127 raw range. Read the calibration backup first and the model can check itself
+against your pad's stored `cal_min` / `cal_center` / `cal_max` (12-bit, ~2000 expected). A **centre + range**
+recalibration changes this maths — it re-scales both ends — so sweep both sticks for that one.
+
+### Jitter gate
+
+If rest jitter on the worst axis is **σ > 4 raw**, the verdict warns instead of advising a write. High σ means the
+rest position wasn't stable enough to calibrate against: usually debris in the potentiometer or a loose gimbal.
+Calibrating against a moving target bakes the movement in.
 
 ---
 
@@ -113,7 +162,8 @@ normalised is what your game engine consumes.
    security property, not a bug. Pick the entry whose usage is **Game Pad** (usage page `0x01`, usage `0x05`).
    If two entries appear, pick the one that isn't the `Vendor` usage.
 4. **Sample 3 seconds, hands off.** Set the controller flat, don't touch it. This is your baseline. Read the
-   verdict column: `healthy` (offset < 3), `slight` (3–8), `DRIFT` (> 8).
+   per-axis column first — `healthy` (offset < 3), `slight` (3–8), `DRIFT` (> 8) — then the **verdict panel**
+   underneath for the overall call and the throw-cost estimate.
 5. **Read calibration and save the backup.** Always, before anything else.
 6. **Reconsider.** If it reads `healthy`, stop here. You don't need a fix.
 7. **Only then recalibrate.** Centre-only first. Re-sample afterwards and the comparison table tells you directly
@@ -279,7 +329,8 @@ dualsense-drift-lab/
 │   ├── favicon.svg            tab icon
 │   └── social-preview.png     1280×640 card
 ├── tools/
-│   └── make_preview.py        regenerates the social preview
+│   ├── make_preview.py        regenerates the social preview
+│   └── brandcheck.html        asset contact sheet for visual QA
 ├── README.md
 ├── LICENSE                    MIT
 └── .gitignore
