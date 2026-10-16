@@ -3,18 +3,61 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>DualSense Drift Lab</title>
+<title>DualSense Drift Lab — stick drift diagnostics for PS5 &amp; PC</title>
+<meta name="description" content="Measure, back up, and recentre DualSense stick drift from your browser via WebHID. Volatile by default: unplug to undo. Nothing installed, nothing uploaded.">
+<meta name="theme-color" content="#0d1117">
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+
+<meta property="og:type" content="website">
+<meta property="og:title" content="DualSense Drift Lab">
+<meta property="og:description" content="Measure stick drift, back up your calibration, recentre the sticks. In-browser, via WebHID. Unplug to undo.">
+<meta property="og:image" content="assets/social-preview.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="DualSense Drift Lab">
+<meta name="twitter:description" content="Measure stick drift, back up your calibration, recentre the sticks. In-browser, via WebHID. Unplug to undo.">
+<meta name="twitter:image" content="assets/social-preview.png">
+
 <style>
   :root {
     --bg:#0d1117; --panel:#161b22; --border:#30363d; --text:#e6edf3;
     --dim:#8b949e; --accent:#58a6ff; --good:#3fb950; --warn:#d29922; --bad:#f85149;
   }
   *{box-sizing:border-box}
-  body{margin:0;padding:24px;background:var(--bg);color:var(--text);
+  body{margin:0;padding:0 24px 48px;background:var(--bg);color:var(--text);
        font:14px/1.5 -apple-system,"Segoe UI",Roboto,sans-serif;max-width:1080px;margin-inline:auto}
   h1{font-size:20px;margin:0 0 4px}
   h2{font-size:15px;margin:0 0 12px;color:var(--accent)}
   .sub{color:var(--dim);margin:0 0 20px;font-size:13px}
+
+  /* ---------- brand masthead ---------- */
+  .masthead{display:flex;align-items:center;gap:16px;padding:28px 0 20px;margin-bottom:20px;
+            border-bottom:1px solid var(--border);position:relative}
+  .masthead::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:1px;
+            background:linear-gradient(90deg,var(--accent),transparent 60%)}
+  .mark{width:60px;height:60px;flex:none;filter:drop-shadow(0 0 18px rgba(88,166,255,.18))}
+  .wordmark{flex:1;min-width:0}
+  .wordmark h1{font-size:24px;letter-spacing:-.02em;margin:0;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+  .wordmark h1 .ds{font-weight:800}
+  .wordmark h1 .dl{font-weight:300;color:var(--accent)}
+  .tagline{color:var(--dim);font-size:13px;margin:4px 0 0}
+  .ver{text-align:right;font-size:12px;color:var(--dim);line-height:1.8;flex:none}
+  .ver b{display:block;color:var(--text);font-weight:600;font-size:13px}
+  .badges{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;justify-content:flex-end}
+  .chip{display:inline-block;padding:2px 9px;border-radius:11px;font-size:11px;font-weight:600;
+        border:1px solid var(--border);color:var(--dim);background:#0d1117;white-space:nowrap}
+  .chip.blue{color:var(--accent);border-color:#1f3a5c}
+  .chip.green{color:var(--good);border-color:#1d4a2c}
+  @media(max-width:640px){.masthead{flex-wrap:wrap}.ver{text-align:left;width:100%}.badges{justify-content:flex-start}}
+
+  /* ---------- footer ---------- */
+  footer{margin-top:32px;padding-top:20px;border-top:1px solid var(--border);
+         color:var(--dim);font-size:12.5px;line-height:1.7}
+  footer a{color:var(--accent);text-decoration:none}
+  footer a:hover{text-decoration:underline}
+  .footrow{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap;align-items:flex-start}
+  .footbrand{display:flex;gap:10px;align-items:center}
+  .footbrand img{width:28px;height:28px;opacity:.85}
+  .disclaimer{margin-top:14px;font-size:11.5px;color:#6e7681;max-width:62ch}
   .panel{background:var(--panel);border:1px solid var(--border);border-radius:8px;
          padding:16px;margin-bottom:16px}
   button{background:#21262d;color:var(--text);border:1px solid var(--border);border-radius:6px;
@@ -59,11 +102,24 @@
 </head>
 <body>
 
-<h1>DualSense Drift Lab</h1>
-<p class="sub">
-  Measure, back up, and optionally recentre stick drift on a Sony DualSense / DualSense Edge.
-  Runs entirely in your browser via WebHID. Nothing is uploaded, nothing is installed.
-</p>
+<header class="masthead">
+  <img class="mark" src="assets/logo.svg" alt="DualSense Drift Lab" width="60" height="60">
+  <div class="wordmark">
+    <h1><span class="ds">DualSense</span> <span class="dl">Drift Lab</span></h1>
+    <p class="tagline">Measure it. Back it up. Recentre it. &mdash; in-browser drift diagnostics for the PS5 DualSense &amp; DualSense Edge.</p>
+    <div class="badges">
+      <span class="chip blue">WebHID</span>
+      <span class="chip">USB</span>
+      <span class="chip green">Volatile by default</span>
+      <span class="chip">Zero install</span>
+      <span class="chip">MIT</span>
+    </div>
+  </div>
+  <div class="ver">
+    <b>v2.0</b>
+    public build
+  </div>
+</header>
 
 <div class="panel">
   <h2>1 · Connect</h2>
@@ -575,5 +631,29 @@ window.addEventListener("beforeunload", e => { if (dev && dev.opened) e.preventD
 drawPlot();
 log("Ready. Connect the controller over USB.");
 </script>
+
+<footer>
+  <div class="footrow">
+    <div class="footbrand">
+      <img src="assets/logo.svg" alt="">
+      <div>
+        <b style="color:var(--text)">DualSense Drift Lab</b> v2.0<br>
+        Independent tool &middot; not affiliated with or endorsed by Sony Interactive Entertainment.
+      </div>
+    </div>
+    <div style="text-align:right">
+      <a href="https://github.com/alshkylybdalslam/dualsense-drift-lab">Source on GitHub</a> &middot;
+      <a href="https://github.com/alshkylybdalslam/dualsense-drift-lab/blob/main/LICENSE">MIT License</a><br>
+      Protocol after <a href="https://github.com/dualshock-tools">dualshock-tools</a> &amp; Linux <code>hid-playstation</code>.
+    </div>
+  </div>
+  <p class="disclaimer">
+    <b style="color:var(--dim)">Safety notice.</b> Recalibration recentres your sticks around worn hardware; it does not
+    repair the potentiometer. Writes are <b>volatile by default</b> &mdash; unplugging the controller restores the
+    original calibration. The permanent write (report <code>0x80</code>) unlocks controller flash and is
+    <b>not</b> undone by unplugging. Everything you do here is logged on screen. Use at your own risk, and back up
+    your calibration before writing.
+  </p>
+</footer>
 </body>
 </html>

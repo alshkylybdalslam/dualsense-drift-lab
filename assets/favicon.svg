@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <linearGradient id="f" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#79b8ff"/><stop offset="1" stop-color="#1f6feb"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="15" fill="#0d1117"/>
+  <rect x="1" y="1" width="62" height="62" rx="14" fill="none" stroke="#30363d" stroke-width="2"/>
+  <!-- reticle -->
+  <g stroke="#3fb950" stroke-width="4" stroke-linecap="round">
+    <path d="M32 9v9M32 46v9M9 32h9M46 32h9"/>
+  </g>
+  <circle cx="32" cy="32" r="15" fill="none" stroke="#3fb950" stroke-width="2.5" opacity=".4"/>
+  <!-- drift trail off centre -->
+  <path d="M32 32c5-7 9 4 14-3" fill="none" stroke="#f85149" stroke-width="4"
+        stroke-linecap="round" stroke-dasharray="0.5 5"/>
+  <circle cx="47" cy="28" r="6" fill="#f85149"/>
+  <circle cx="32" cy="32" r="4.5" fill="url(#f)"/>
+</svg>

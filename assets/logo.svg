@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-label="DualSense Drift Lab">
+  <defs>
+    <linearGradient id="dsBody" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#e6edf3"/>
+      <stop offset="1" stop-color="#7d8894"/>
+    </linearGradient>
+    <linearGradient id="dsAccent" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#79b8ff"/>
+      <stop offset="1" stop-color="#1f6feb"/>
+    </linearGradient>
+    <linearGradient id="trail" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f85149" stop-opacity=".15"/>
+      <stop offset="1" stop-color="#f85149" stop-opacity=".9"/>
+    </linearGradient>
+  </defs>
+
+  <!-- plate -->
+  <circle cx="128" cy="128" r="122" fill="#0d1117"/>
+  <circle cx="128" cy="128" r="121" fill="none" stroke="#30363d" stroke-width="2"/>
+
+  <!-- calibration grid -->
+  <g stroke="#1b2028" stroke-width="1.5">
+    <path d="M64 12V244M128 12V244M192 12V244M16 64H240M16 128H240M16 192H240"/>
+  </g>
+
+  <!-- ===== upper: DualSense, upright ===== -->
+  <g transform="translate(0,-26)">
+    <path fill="url(#dsBody)" d="M128 44C106 44 84 48 70 58c-12 8-18 18-16 32 2 16 10 32 20 44 8 10 20 16 26 6 6-10 4-18 12-22 6-3 10-4 16-4s10 1 16 4c8 4 6 12 12 22 6 10 18 4 26-6 10-12 18-28 20-44 2-14-4-24-16-32-14-10-36-14-58-14Z"/>
+    <!-- light bar -->
+    <rect x="98" y="50" width="60" height="5" rx="2.5" fill="url(#dsAccent)"/>
+    <!-- touchpad -->
+    <rect x="103" y="60" width="50" height="24" rx="6" fill="#0d1117"/>
+    <!-- sticks -->
+    <circle cx="100" cy="102" r="12" fill="#0d1117"/>
+    <circle cx="100" cy="102" r="6.5" fill="url(#dsAccent)"/>
+    <circle cx="156" cy="102" r="12" fill="#0d1117"/>
+    <circle cx="156" cy="102" r="6.5" fill="#7d8894"/>
+    <!-- the drifting stick -->
+    <circle cx="100" cy="102" r="17" fill="none" stroke="#f85149" stroke-width="2" stroke-dasharray="3 4" opacity=".85"/>
+  </g>
+
+  <!-- ===== lower: the reticle the stick can't reach ===== -->
+  <g>
+    <circle cx="128" cy="182" r="40" fill="none" stroke="#3fb950" stroke-width="1.5" opacity=".28"/>
+    <g stroke="#3fb950" stroke-width="3" stroke-linecap="round" opacity=".9">
+      <path d="M128 130v14M128 220v14M76 182h14M166 182h14"/>
+    </g>
+    <!-- drift: wandering away from centre -->
+    <path d="M128 182c8-11 15 7 23-4s13 4 21-7"
+          fill="none" stroke="url(#trail)" stroke-width="3.5"
+          stroke-linecap="round" stroke-dasharray="0.5 6"/>
+    <circle cx="176" cy="167" r="6" fill="#f85149"/>
+    <circle cx="128" cy="182" r="4.5" fill="#3fb950"/>
+  </g>
+</svg>

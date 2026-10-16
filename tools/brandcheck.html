@@ -1,0 +1,46 @@
+﻿<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>brand check</title>
+<style>
+ body{margin:0;background:#0d1117;color:#e6edf3;font:13px -apple-system,"Segoe UI",sans-serif;padding:24px}
+ .row{display:flex;align-items:center;gap:24px;margin-bottom:24px;flex-wrap:wrap}
+ .cell{text-align:center}
+ .cell p{margin:8px 0 0;color:#8b949e;font-size:11px}
+ .light{background:#ffffff;color:#111;padding:16px;border-radius:8px}
+ .masthead{display:flex;align-items:center;gap:16px;border:1px solid #30363d;border-radius:8px;padding:16px;background:#161b22}
+ .wm h1{font-size:24px;margin:0}
+ .wm .ds{font-weight:800}.wm .dl{font-weight:300;color:#58a6ff}
+ .tag{color:#8b949e;font-size:13px;margin:4px 0 0}
+ .chips{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+ .chip{padding:2px 9px;border-radius:11px;font-size:11px;font-weight:600;border:1px solid #30363d;color:#8b949e}
+ .chip.blue{color:#58a6ff;border-color:#1f3a5c}.chip.green{color:#3fb950;border-color:#1d4a2c}
+</style></head><body>
+
+<div class="row">
+  <div class="cell"><img src="../assets/logo.svg" width="256" height="256"><p>logo 256</p></div>
+  <div class="cell"><img src="../assets/logo.svg" width="128" height="128"><p>128</p></div>
+  <div class="cell"><img src="../assets/logo.svg" width="60" height="60"><p>60 (masthead)</p></div>
+  <div class="cell"><img src="../assets/logo.svg" width="28" height="28"><p>28 (footer)</p></div>
+</div>
+
+<div class="row">
+  <div class="cell light"><img src="../assets/favicon.svg" width="16" height="16"><p style="color:#555">favicon 16</p></div>
+  <div class="cell light"><img src="../assets/favicon.svg" width="32" height="32"><p style="color:#555">32</p></div>
+  <div class="cell"><img src="../assets/favicon.svg" width="64" height="64"><p>64</p></div>
+  <div class="cell"><img src="../assets/social-preview.png" width="384" height="192"><p>social preview 1280 x 640</p></div>
+</div>
+
+<div class="row">
+  <div class="masthead" style="width:640px">
+    <img src="../assets/logo.svg" width="60" height="60">
+    <div class="wm">
+      <h1><span class="ds">DualSense</span> <span class="dl">Drift Lab</span></h1>
+      <p class="tag">Measure it. Back it up. Recentre it.</p>
+      <div class="chips">
+        <span class="chip blue">WebHID</span><span class="chip">USB</span>
+        <span class="chip green">Volatile by default</span><span class="chip">Zero install</span><span class="chip">MIT</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body></html>
